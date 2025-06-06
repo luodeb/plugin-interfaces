@@ -1,5 +1,7 @@
 # Plugin Interfaces
 
+[中文文档](./README_zh.md)
+
 A comprehensive Rust crate that provides the core interface definitions and abstractions for the chat-client plugin system. This crate serves as the foundation for building dynamic, loadable plugins that can extend the functionality of the chat-client application.
 
 ## Overview
