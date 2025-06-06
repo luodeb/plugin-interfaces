@@ -1,8 +1,8 @@
 [package]
-name = "plugin-interface"
+name = "plugin-interfaces"
 version = "0.1.0"
 edition = "2021"
-description = "Plugin interface for chat-client application"
+description = "Plugin interfaces for chat-client application"
 authors = ["Your Name"]
 
 [dependencies]
