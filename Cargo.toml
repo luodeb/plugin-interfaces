@@ -1,7 +1,7 @@
 [package]
 name = "plugin-interfaces"
 version = "0.1.1"
-edition = "2024"
+edition = "2021"
 description = "Plugin interfaces for chat-client application"
 authors = ["Debin <luodeb@outlook.com>"]
 license = "Apache-2.0"
