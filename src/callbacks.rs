@@ -21,6 +21,10 @@ static HOST_CALLBACKS: OnceLock<HostCallbacks> = OnceLock::new();
 
 /// 设置主程序回调函数（由主程序调用）
 pub fn set_host_callbacks(callbacks: HostCallbacks) -> Result<(), HostCallbacks> {
+    // 判断是否已经设置过回调函数
+    if HOST_CALLBACKS.get().is_some() {
+        return Ok(());
+    }
     HOST_CALLBACKS.set(callbacks)
 }
 
