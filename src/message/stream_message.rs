@@ -55,6 +55,7 @@ pub struct StreamInfo {
 pub struct StreamMessageWrapper {
     pub r#type: String,
     pub plugin_id: String,
+    pub instance_id: String,
     pub data: StreamMessageData,
     pub timestamp: u64,
 }
@@ -115,12 +116,14 @@ fn generate_stream_id() -> String {
 /// 发送流式消息到前端
 fn send_stream_message_to_frontend(
     plugin_id: &str,
+    instance_id: &str,
     message_type: &str,
     data: StreamMessageData,
 ) -> bool {
     let wrapper = StreamMessageWrapper {
         r#type: message_type.to_string(),
         plugin_id: plugin_id.to_string(),
+        instance_id: instance_id.to_string(),
         data,
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -190,14 +193,10 @@ impl<T: PluginHandler> PluginStreamMessage for T {
     ) -> Result<String, StreamError> {
         let stream_id = generate_stream_id();
         let plugin_metadata = self.get_metadata();
-        // 优先使用实例ID，如果没有则使用插件ID
-        let plugin_id = plugin_metadata
-            .instance_id
-            .as_ref()
-            .unwrap_or(&plugin_metadata.id)
-            .clone();
+        let plugin_id = &plugin_metadata.id;
+        let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
 
-        log_info!("Starting stream: {} {}", stream_id, plugin_id);
+        log_info!("Starting stream: {} {} {}", stream_id, plugin_id, instance_id);
 
         let data = StreamMessageData::Start(StreamStartData {
             stream_id: stream_id.clone(),
@@ -205,7 +204,7 @@ impl<T: PluginHandler> PluginStreamMessage for T {
             metadata: metadata.map(|s| s.to_string()),
         });
 
-        if send_stream_message_to_frontend(&plugin_id, "stream_start", data) {
+        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_start", data) {
             // 记录流信息
             if let Ok(mut manager) = STREAM_MANAGER.lock() {
                 let stream_info = StreamInfo {
@@ -251,18 +250,15 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata
-            .instance_id
-            .as_ref()
-            .unwrap_or(&plugin_metadata.id)
-            .clone();
+        let plugin_id = &plugin_metadata.id;
+        let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
         let data = StreamMessageData::Data(StreamDataData {
             stream_id: stream_id.to_string(),
             chunk: chunk.to_string(),
             is_final,
         });
 
-        if send_stream_message_to_frontend(&plugin_id, "stream_data", data) {
+        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data) {
             // 更新流状态
             if is_final {
                 if let Ok(mut manager) = STREAM_MANAGER.lock() {
@@ -294,18 +290,15 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata
-            .instance_id
-            .as_ref()
-            .unwrap_or(&plugin_metadata.id)
-            .clone();
+        let plugin_id = &plugin_metadata.id;
+        let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
         let data = StreamMessageData::End(StreamEndData {
             stream_id: stream_id.to_string(),
             success,
             error: error_msg.map(|s| s.to_string()),
         });
 
-        if send_stream_message_to_frontend(&plugin_id, "stream_end", data) {
+        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_end", data) {
             // 更新流状态
             if let Ok(mut manager) = STREAM_MANAGER.lock() {
                 if let Some(stream_info) = manager.get_mut(stream_id) {
@@ -332,16 +325,13 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Paused;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata
-                        .instance_id
-                        .as_ref()
-                        .unwrap_or(&plugin_metadata.id)
-                        .clone();
+                    let plugin_id = &plugin_metadata.id;
+                    let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
 
-                    if send_stream_message_to_frontend(&plugin_id, "stream_pause", data) {
+                    if send_stream_message_to_frontend(plugin_id, instance_id, "stream_pause", data) {
                         Ok(())
                     } else {
                         // 回滚状态
@@ -366,16 +356,13 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Active;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata
-                        .instance_id
-                        .as_ref()
-                        .unwrap_or(&plugin_metadata.id)
-                        .clone();
+                    let plugin_id = &plugin_metadata.id;
+                    let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
 
-                    if send_stream_message_to_frontend(&plugin_id, "stream_resume", data) {
+                    if send_stream_message_to_frontend(plugin_id, instance_id, "stream_resume", data) {
                         Ok(())
                     } else {
                         // 回滚状态
@@ -400,16 +387,13 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Cancelled;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata
-                        .instance_id
-                        .as_ref()
-                        .unwrap_or(&plugin_metadata.id)
-                        .clone();
+                    let plugin_id = &plugin_metadata.id;
+                    let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
 
-                    if send_stream_message_to_frontend(&plugin_id, "stream_cancel", data) {
+                    if send_stream_message_to_frontend(plugin_id, instance_id, "stream_cancel", data) {
                         Ok(())
                     } else {
                         Err(StreamError::SendFailed)
@@ -476,11 +460,8 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata
-            .instance_id
-            .as_ref()
-            .unwrap_or(&plugin_metadata.id)
-            .clone();
+        let plugin_id = &plugin_metadata.id;
+        let instance_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id);
 
         for (i, chunk) in chunks.iter().enumerate() {
             let is_final = i == chunks.len() - 1;
@@ -490,7 +471,7 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                 is_final,
             });
 
-            if !send_stream_message_to_frontend(&plugin_id, "stream_data", data) {
+            if !send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data) {
                 return Err(StreamError::SendFailed);
             }
         }

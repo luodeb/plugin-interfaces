@@ -29,10 +29,11 @@ impl MessageType {
 }
 
 /// 发送消息到前端（新协议）
-pub fn send_message_to_frontend(plugin_id: &str, content: &str, message_type: MessageType) -> bool {
+pub fn send_message_to_frontend(plugin_id: &str, instance_id: &str, content: &str, message_type: MessageType) -> bool {
     let payload = json!({
         "type": "plugin_message",
         "plugin_id": plugin_id,
+        "instance_id": instance_id,
         "content": content,
         "message_type": message_type.as_str(),
         "timestamp": std::time::SystemTime::now()
@@ -78,8 +79,8 @@ pub trait PluginMessage {
 impl<T: PluginHandler> PluginMessage for T {
     fn send_message_to_frontend_typed(&self, content: &str, message_type: MessageType) -> bool {
         let metadata = self.get_metadata();
-        // 优先使用实例ID，如果没有则使用插件ID
-        let id = metadata.instance_id.as_ref().unwrap_or(&metadata.id);
-        send_message_to_frontend(id, content, message_type)
+        let plugin_id = &metadata.id;
+        let instance_id = metadata.instance_id.as_ref().unwrap_or(&metadata.id);
+        send_message_to_frontend(plugin_id, instance_id, content, message_type)
     }
 }
