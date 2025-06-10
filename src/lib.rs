@@ -19,3 +19,11 @@ pub use logging::*;
 pub use pluginui::{CreationContext, Context, Ui, PluginUiOption};
 pub use config::*;
 pub use message::*;
+
+// 导出新增的全局 metadata 相关函数
+pub use metadata::{
+    set_plugin_metadata,
+    get_plugin_metadata,
+    clear_plugin_metadata
+};
+pub use api::{get_current_plugin_metadata};

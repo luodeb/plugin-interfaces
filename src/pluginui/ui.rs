@@ -185,9 +185,7 @@ impl Ui {
 
         let component = UiComponent {
             id: id.clone(),
-            component: UiComponentType::Toggle {
-                value: *value,
-            },
+            component: UiComponentType::Toggle { value: *value },
         };
         self.add_component(component);
 
@@ -307,7 +305,8 @@ impl<T: PluginHandler> PluginUiOption for T {
         let plugin_id = self.get_metadata().id;
         let payload = serde_json::json!({
             "plugin": plugin_id
-        }).to_string();
+        })
+        .to_string();
         send_to_frontend("plugin-ui-refreshed", &payload.as_str())
     }
 }

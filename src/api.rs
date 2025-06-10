@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use crate::callbacks::get_host_callbacks;
+use crate::metadata::{get_plugin_metadata, PluginMetadata};
 
 /// 向前端发送消息（供插件使用）
 /// 内部调用 host_send_to_frontend 函数
@@ -49,4 +50,10 @@ pub fn call_other_plugin(plugin_id: &str, message: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// 获取当前插件的元数据
+/// 便捷函数，供插件获取自己的完整元数据信息
+pub fn get_current_plugin_metadata() -> Option<&'static PluginMetadata> {
+    get_plugin_metadata()
 }

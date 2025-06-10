@@ -7,9 +7,9 @@ use std::os::raw::c_char;
 #[repr(C)]
 pub struct PluginInterface {
     pub plugin_ptr: *mut std::ffi::c_void,
-    pub initialize: unsafe extern "C" fn(*mut std::ffi::c_void, HostCallbacks) -> i32,
+    pub initialize: unsafe extern "C" fn(*mut std::ffi::c_void, HostCallbacks, PluginMetadataFFI) -> i32,
     pub update_ui: unsafe extern "C" fn(*mut std::ffi::c_void, *const std::ffi::c_void, *mut std::ffi::c_void) -> i32,
-    pub on_mount: unsafe extern "C" fn(*mut std::ffi::c_void, PluginMetadataFFI) -> i32,
+    pub on_mount: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_dispose: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_connect: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_disconnect: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
@@ -40,9 +40,17 @@ pub fn create_plugin_interface_from_handler(
     let handler_ptr = Box::into_raw(Box::new(handler)) as *mut std::ffi::c_void;
 
     // 定义FFI安全的函数包装器
-    unsafe extern "C" fn initialize_wrapper(ptr: *mut std::ffi::c_void, callbacks: HostCallbacks) -> i32 {
+    unsafe extern "C" fn initialize_wrapper(
+        ptr: *mut std::ffi::c_void,
+        callbacks: HostCallbacks,
+        metadata_ffi: PluginMetadataFFI
+    ) -> i32 {
         let handler = &*(ptr as *mut Box<dyn crate::handler::PluginHandler>);
-        match handler.initialize(callbacks) {
+
+        // 将 FFI 元数据转换为 Rust 元数据
+        let metadata = crate::metadata::convert_ffi_to_metadata(metadata_ffi);
+
+        match handler.initialize(callbacks, metadata) {
             Ok(_) => 0,
             Err(_) => -1,
         }
@@ -61,51 +69,10 @@ pub fn create_plugin_interface_from_handler(
         0
     }
 
-    unsafe extern "C" fn on_mount_wrapper(ptr: *mut std::ffi::c_void, metadata_ffi: PluginMetadataFFI) -> i32 {
+    unsafe extern "C" fn on_mount_wrapper(ptr: *mut std::ffi::c_void) -> i32 {
         let handler = &mut *(ptr as *mut Box<dyn crate::handler::PluginHandler>);
 
-        // Convert FFI metadata back to Rust struct
-        let metadata = crate::metadata::PluginMetadata {
-            id: if !metadata_ffi.id.is_null() {
-                CStr::from_ptr(metadata_ffi.id).to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
-            disabled: metadata_ffi.disabled,
-            name: if !metadata_ffi.name.is_null() {
-                CStr::from_ptr(metadata_ffi.name).to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
-            description: if !metadata_ffi.description.is_null() {
-                CStr::from_ptr(metadata_ffi.description).to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
-            version: if !metadata_ffi.version.is_null() {
-                CStr::from_ptr(metadata_ffi.version).to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
-            author: if !metadata_ffi.author.is_null() {
-                Some(CStr::from_ptr(metadata_ffi.author).to_string_lossy().to_string())
-            } else {
-                None
-            },
-            library_path: if !metadata_ffi.library_path.is_null() {
-                Some(CStr::from_ptr(metadata_ffi.library_path).to_string_lossy().to_string())
-            } else {
-                None
-            },
-            config_path: if !metadata_ffi.config_path.is_null() {
-                CStr::from_ptr(metadata_ffi.config_path).to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
-            instance_id: None, // 在on_mount时设置
-        };
-
-        match handler.on_mount(&metadata) {
+        match handler.on_mount() {
             Ok(_) => 0,
             Err(_) => -1,
         }
