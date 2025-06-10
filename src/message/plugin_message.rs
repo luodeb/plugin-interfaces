@@ -1,41 +1,25 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::{send_to_frontend, PluginHandler};
 use serde_json::json;
 
-/// 消息类型枚举
-#[derive(Debug, Clone)]
-pub enum MessageType {
-    /// 普通消息
-    Normal,
-    /// 成功消息
-    Success,
-    /// 警告消息
-    Warning,
-    /// 错误消息
-    Error,
-    /// 信息消息
-    Info,
-}
-
-impl MessageType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            MessageType::Normal => "normal",
-            MessageType::Success => "success",
-            MessageType::Warning => "warning",
-            MessageType::Error => "error",
-            MessageType::Info => "info",
-        }
-    }
+/// 生成唯一的流ID
+fn generate_message_id() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    format!("message_{}", timestamp)
 }
 
 /// 发送消息到前端（新协议）
-pub fn send_message_to_frontend(plugin_id: &str, instance_id: &str, content: &str, message_type: MessageType) -> bool {
+pub fn send_message_to_frontend(plugin_id: &str, instance_id: &str, content: &str) -> bool {
     let payload = json!({
-        "type": "plugin_message",
+        "message_type": "plugin_message",
         "plugin_id": plugin_id,
         "instance_id": instance_id,
+        "message_id": generate_message_id(),
         "content": content,
-        "message_type": message_type.as_str(),
         "timestamp": std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -48,39 +32,14 @@ pub fn send_message_to_frontend(plugin_id: &str, instance_id: &str, content: &st
 /// 插件消息发送器
 pub trait PluginMessage {
     /// 向前端发送消息（新协议）
-    fn send_message_to_frontend(&self, content: &str) -> bool {
-        self.send_message_to_frontend_typed(content, MessageType::Normal)
-    }
-
-    /// 向前端发送带类型的消息
-    fn send_message_to_frontend_typed(&self, content: &str, message_type: MessageType) -> bool;
-
-    /// 向前端发送成功消息
-    fn send_success_message(&self, content: &str) -> bool {
-        self.send_message_to_frontend_typed(content, MessageType::Success)
-    }
-
-    /// 向前端发送错误消息
-    fn send_error_message(&self, content: &str) -> bool {
-        self.send_message_to_frontend_typed(content, MessageType::Error)
-    }
-
-    /// 向前端发送警告消息
-    fn send_warning_message(&self, content: &str) -> bool {
-        self.send_message_to_frontend_typed(content, MessageType::Warning)
-    }
-
-    /// 向前端发送信息消息
-    fn send_info_message(&self, content: &str) -> bool {
-        self.send_message_to_frontend_typed(content, MessageType::Info)
-    }
+    fn send_message_to_frontend(&self, content: &str) -> bool;
 }
 
 impl<T: PluginHandler> PluginMessage for T {
-    fn send_message_to_frontend_typed(&self, content: &str, message_type: MessageType) -> bool {
+    fn send_message_to_frontend(&self, content: &str) -> bool {
         let metadata = self.get_metadata();
         let plugin_id = &metadata.id;
         let instance_id = metadata.instance_id.as_ref().unwrap_or(&metadata.id);
-        send_message_to_frontend(plugin_id, instance_id, content, message_type)
+        send_message_to_frontend(plugin_id, instance_id, content)
     }
 }
