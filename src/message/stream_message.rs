@@ -191,7 +191,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         let stream_id = generate_stream_id();
         let plugin_metadata = self.get_metadata();
         // 优先使用实例ID，如果没有则使用插件ID
-        let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+        let plugin_id = plugin_metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_metadata.id)
+            .clone();
 
         log_info!("Starting stream: {} {}", stream_id, plugin_id);
 
@@ -247,7 +251,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+        let plugin_id = plugin_metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_metadata.id)
+            .clone();
         let data = StreamMessageData::Data(StreamDataData {
             stream_id: stream_id.to_string(),
             chunk: chunk.to_string(),
@@ -286,7 +294,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+        let plugin_id = plugin_metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_metadata.id)
+            .clone();
         let data = StreamMessageData::End(StreamEndData {
             stream_id: stream_id.to_string(),
             success,
@@ -320,7 +332,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Paused;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+                    let plugin_id = plugin_metadata
+                        .instance_id
+                        .as_ref()
+                        .unwrap_or(&plugin_metadata.id)
+                        .clone();
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
@@ -350,7 +366,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Active;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+                    let plugin_id = plugin_metadata
+                        .instance_id
+                        .as_ref()
+                        .unwrap_or(&plugin_metadata.id)
+                        .clone();
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
@@ -380,7 +400,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                     stream_info.status = StreamStatus::Cancelled;
 
                     let plugin_metadata = self.get_metadata();
-                    let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+                    let plugin_id = plugin_metadata
+                        .instance_id
+                        .as_ref()
+                        .unwrap_or(&plugin_metadata.id)
+                        .clone();
                     let data = StreamMessageData::Control(StreamControlData {
                         stream_id: stream_id.to_string(),
                     });
@@ -408,7 +432,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
     fn list_active_streams(&self) -> Vec<String> {
         if let Ok(manager) = STREAM_MANAGER.lock() {
             let plugin_metadata = self.get_metadata();
-            let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+            let plugin_id = plugin_metadata
+                .instance_id
+                .as_ref()
+                .unwrap_or(&plugin_metadata.id)
+                .clone();
             manager
                 .iter()
                 .filter(|(_, info)| {
@@ -448,7 +476,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         let plugin_metadata = self.get_metadata();
-        let plugin_id = plugin_metadata.instance_id.as_ref().unwrap_or(&plugin_metadata.id).clone();
+        let plugin_id = plugin_metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_metadata.id)
+            .clone();
 
         for (i, chunk) in chunks.iter().enumerate() {
             let is_final = i == chunks.len() - 1;

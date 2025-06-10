@@ -1,5 +1,5 @@
-use crate::metadata::PluginMetadataFFI;
 use crate::callbacks::HostCallbacks;
+use crate::metadata::PluginMetadataFFI;
 use std::os::raw::c_char;
 
 /// FFI安全的插件接口
@@ -7,13 +7,19 @@ use std::os::raw::c_char;
 #[repr(C)]
 pub struct PluginInterface {
     pub plugin_ptr: *mut std::ffi::c_void,
-    pub initialize: unsafe extern "C" fn(*mut std::ffi::c_void, HostCallbacks, PluginMetadataFFI) -> i32,
-    pub update_ui: unsafe extern "C" fn(*mut std::ffi::c_void, *const std::ffi::c_void, *mut std::ffi::c_void) -> i32,
+    pub initialize:
+        unsafe extern "C" fn(*mut std::ffi::c_void, HostCallbacks, PluginMetadataFFI) -> i32,
+    pub update_ui: unsafe extern "C" fn(
+        *mut std::ffi::c_void,
+        *const std::ffi::c_void,
+        *mut std::ffi::c_void,
+    ) -> i32,
     pub on_mount: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_dispose: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_connect: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub on_disconnect: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
-    pub handle_message: unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char, *mut *mut c_char) -> i32,
+    pub handle_message:
+        unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char, *mut *mut c_char) -> i32,
     pub get_metadata: unsafe extern "C" fn(*mut std::ffi::c_void) -> PluginMetadataFFI,
     pub destroy: unsafe extern "C" fn(*mut std::ffi::c_void),
 }
@@ -33,7 +39,7 @@ pub const DESTROY_PLUGIN_SYMBOL: &[u8] = b"destroy_plugin";
 /// 从PluginHandler trait对象创建FFI安全的插件接口
 /// 这个函数帮助插件开发者将trait对象转换为FFI安全的接口
 pub fn create_plugin_interface_from_handler(
-    handler: Box<dyn crate::handler::PluginHandler>
+    handler: Box<dyn crate::handler::PluginHandler>,
 ) -> *mut PluginInterface {
     use std::ffi::{CStr, CString};
 
@@ -43,7 +49,7 @@ pub fn create_plugin_interface_from_handler(
     unsafe extern "C" fn initialize_wrapper(
         ptr: *mut std::ffi::c_void,
         callbacks: HostCallbacks,
-        metadata_ffi: PluginMetadataFFI
+        metadata_ffi: PluginMetadataFFI,
     ) -> i32 {
         let handler = &*(ptr as *mut Box<dyn crate::handler::PluginHandler>);
 
@@ -59,7 +65,7 @@ pub fn create_plugin_interface_from_handler(
     unsafe extern "C" fn update_ui_wrapper(
         ptr: *mut std::ffi::c_void,
         ctx_ptr: *const std::ffi::c_void,
-        ui_ptr: *mut std::ffi::c_void
+        ui_ptr: *mut std::ffi::c_void,
     ) -> i32 {
         let handler = &mut *(ptr as *mut Box<dyn crate::handler::PluginHandler>);
         let ctx = &*(ctx_ptr as *const crate::pluginui::Context);
@@ -105,7 +111,7 @@ pub fn create_plugin_interface_from_handler(
     unsafe extern "C" fn handle_message_wrapper(
         ptr: *mut std::ffi::c_void,
         message: *const c_char,
-        result: *mut *mut c_char
+        result: *mut *mut c_char,
     ) -> i32 {
         let handler = &*(ptr as *mut Box<dyn crate::handler::PluginHandler>);
         let message_str = CStr::from_ptr(message).to_string_lossy();

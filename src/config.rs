@@ -21,34 +21,41 @@ impl PluginConfig {
         let config: toml::Value = toml::from_str(&config_content)?;
 
         // 提取插件信息
-        let plugin = config.get("plugin")
+        let plugin = config
+            .get("plugin")
             .ok_or("Missing [plugin] section in config.toml")?;
 
-        let id = plugin.get("id")
+        let id = plugin
+            .get("id")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'id' in [plugin] section")?
             .to_string();
 
-        let disabled = plugin.get("disabled")
+        let disabled = plugin
+            .get("disabled")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let name = plugin.get("name")
+        let name = plugin
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'name' in [plugin] section")?
             .to_string();
 
-        let description = plugin.get("description")
+        let description = plugin
+            .get("description")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'description' in [plugin] section")?
             .to_string();
 
-        let version = plugin.get("version")
+        let version = plugin
+            .get("version")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'version' in [plugin] section")?
             .to_string();
 
-        let author = plugin.get("author")
+        let author = plugin
+            .get("author")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 

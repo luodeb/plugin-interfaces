@@ -1,6 +1,6 @@
-use std::ffi::CString;
 use crate::callbacks::get_host_callbacks;
 use crate::metadata::{get_plugin_metadata, PluginMetadata};
+use std::ffi::CString;
 
 /// 向前端发送消息（供插件使用）
 /// 内部调用 host_send_to_frontend 函数

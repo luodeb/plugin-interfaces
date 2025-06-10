@@ -94,5 +94,3 @@ impl<T: PluginHandler> PluginMessage for T {
         send_message_to_frontend(id, content, message_type)
     }
 }
-
-
