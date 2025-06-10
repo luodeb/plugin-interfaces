@@ -1,59 +1,9 @@
-use crate::callbacks::get_host_callbacks;
-use crate::metadata::{get_plugin_metadata, PluginMetadata};
-use std::ffi::CString;
+// 注意：这个文件现在主要用于向后兼容
+// 新的API应该通过PluginInstanceContext来使用
 
-/// 向前端发送消息（供插件使用）
-/// 内部调用 host_send_to_frontend 函数
-pub fn send_to_frontend(event: &str, payload: &str) -> bool {
-    host_send_to_frontend(event, payload)
-}
-
-/// 调用主程序的 host_send_to_frontend 函数
-/// 这是实际执行向前端发送消息的函数
-pub fn host_send_to_frontend(event: &str, payload: &str) -> bool {
-    if let Some(callbacks) = get_host_callbacks() {
-        if let (Ok(event_str), Ok(payload_str)) = (CString::new(event), CString::new(payload)) {
-            // 调用主程序提供的 host_send_to_frontend 函数
-            return (callbacks.send_to_frontend)(event_str.as_ptr(), payload_str.as_ptr());
-        }
-    }
-    false
-}
-
-/// 获取应用配置（供插件使用）
-pub fn get_app_config(key: &str) -> Option<String> {
-    if let Some(callbacks) = get_host_callbacks() {
-        if let Ok(key_str) = CString::new(key) {
-            let result_ptr = (callbacks.get_app_config)(key_str.as_ptr());
-            if !result_ptr.is_null() {
-                unsafe {
-                    let c_str = std::ffi::CStr::from_ptr(result_ptr);
-                    return c_str.to_str().ok().map(|s| s.to_string());
-                }
-            }
-        }
-    }
-    None
-}
-
-/// 调用其他插件（供插件使用）
-pub fn call_other_plugin(plugin_id: &str, message: &str) -> Option<String> {
-    if let Some(callbacks) = get_host_callbacks() {
-        if let (Ok(id_str), Ok(msg_str)) = (CString::new(plugin_id), CString::new(message)) {
-            let result_ptr = (callbacks.call_other_plugin)(id_str.as_ptr(), msg_str.as_ptr());
-            if !result_ptr.is_null() {
-                unsafe {
-                    let c_str = std::ffi::CStr::from_ptr(result_ptr);
-                    return c_str.to_str().ok().map(|s| s.to_string());
-                }
-            }
-        }
-    }
-    None
-}
-
-/// 获取当前插件的元数据
-/// 便捷函数，供插件获取自己的完整元数据信息
-pub fn get_current_plugin_metadata() -> Option<&'static PluginMetadata> {
-    get_plugin_metadata()
+/// 占位符函数，保持向后兼容
+/// 实际的API现在通过PluginInstanceContext提供
+pub fn placeholder_for_compatibility() {
+    // 这个函数只是为了保持编译通过
+    // 实际使用时应该通过PluginInstanceContext来调用相应的方法
 }

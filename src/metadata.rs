@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::os::raw::c_char;
-use std::sync::OnceLock;
 
 /// 插件元数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,29 +102,89 @@ pub unsafe fn free_plugin_metadata_ffi(metadata: PluginMetadataFFI) {
     }
 }
 
-/// 全局插件元数据存储
-/// 用于在插件运行时存储当前插件的元数据信息
-static PLUGIN_METADATA: OnceLock<PluginMetadata> = OnceLock::new();
-
-/// 设置全局插件元数据
-/// 在插件挂载时由主程序调用
-pub fn set_plugin_metadata(metadata: PluginMetadata) -> Result<(), PluginMetadata> {
-    PLUGIN_METADATA.set(metadata)
+/// 插件实例上下文
+/// 包含插件实例的所有状态信息
+#[derive(Debug, Clone)]
+pub struct PluginInstanceContext {
+    pub instance_id: String,
+    pub metadata: PluginMetadata,
+    pub callbacks: Option<crate::callbacks::HostCallbacks>,
 }
 
-/// 获取全局插件元数据
-/// 供插件在运行时获取自己的元数据信息
-pub fn get_plugin_metadata() -> Option<&'static PluginMetadata> {
-    PLUGIN_METADATA.get()
-}
+impl PluginInstanceContext {
+    /// 创建新的插件实例上下文
+    pub fn new(instance_id: String, metadata: PluginMetadata) -> Self {
+        Self {
+            instance_id,
+            metadata,
+            callbacks: None,
+        }
+    }
 
-/// 清理全局插件元数据
-/// 在插件卸载时调用，为下次插件加载做准备
-/// 注意：OnceLock 不支持重置，所以这个函数目前是空实现
-/// 实际的清理会在插件进程结束时自动完成
-pub fn clear_plugin_metadata() {
-    // OnceLock 不支持重置，但在插件卸载时进程会结束
-    // 所以全局变量会自动清理
+    /// 设置回调函数
+    pub fn set_callbacks(&mut self, callbacks: crate::callbacks::HostCallbacks) {
+        self.callbacks = Some(callbacks);
+    }
+
+    /// 获取实例ID
+    pub fn get_instance_id(&self) -> &str {
+        &self.instance_id
+    }
+
+    /// 获取元数据
+    pub fn get_metadata(&self) -> &PluginMetadata {
+        &self.metadata
+    }
+
+    /// 获取回调函数
+    pub fn get_callbacks(&self) -> Option<&crate::callbacks::HostCallbacks> {
+        self.callbacks.as_ref()
+    }
+
+    /// 向前端发送消息
+    pub fn send_to_frontend(&self, event: &str, payload: &str) -> bool {
+        if let Some(callbacks) = &self.callbacks {
+            use std::ffi::CString;
+            if let (Ok(event_str), Ok(payload_str)) = (CString::new(event), CString::new(payload)) {
+                return (callbacks.send_to_frontend)(event_str.as_ptr(), payload_str.as_ptr());
+            }
+        }
+        false
+    }
+
+    /// 获取应用配置
+    pub fn get_app_config(&self, key: &str) -> Option<String> {
+        if let Some(callbacks) = &self.callbacks {
+            use std::ffi::CString;
+            if let Ok(key_str) = CString::new(key) {
+                let result_ptr = (callbacks.get_app_config)(key_str.as_ptr());
+                if !result_ptr.is_null() {
+                    unsafe {
+                        let c_str = std::ffi::CStr::from_ptr(result_ptr);
+                        return c_str.to_str().ok().map(|s| s.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// 调用其他插件
+    pub fn call_other_plugin(&self, plugin_id: &str, message: &str) -> Option<String> {
+        if let Some(callbacks) = &self.callbacks {
+            use std::ffi::CString;
+            if let (Ok(id_str), Ok(msg_str)) = (CString::new(plugin_id), CString::new(message)) {
+                let result_ptr = (callbacks.call_other_plugin)(id_str.as_ptr(), msg_str.as_ptr());
+                if !result_ptr.is_null() {
+                    unsafe {
+                        let c_str = std::ffi::CStr::from_ptr(result_ptr);
+                        return c_str.to_str().ok().map(|s| s.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 /// 将 FFI 元数据转换为 Rust 元数据

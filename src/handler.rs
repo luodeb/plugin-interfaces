@@ -1,47 +1,49 @@
-use crate::callbacks::{set_host_callbacks, HostCallbacks};
-use crate::get_current_plugin_metadata;
-use crate::metadata::{set_plugin_metadata, PluginMetadata};
+use crate::callbacks::HostCallbacks;
+use crate::metadata::{PluginMetadata, PluginInstanceContext};
 use crate::pluginui::{Context, Ui};
 
 /// 插件处理器 trait
-/// 定义了插件的生命周期方法
+/// 定义了插件的生命周期方法，使用上下文传递模式
 pub trait PluginHandler: Send + Sync {
-    /// 插件初始化时调用（在挂载之前，用于设置回调函数和元数据）
+    /// 插件初始化时调用（在挂载之前，用于创建插件上下文）
+    /// 返回插件实例上下文，包含所有实例相关的状态
     fn initialize(
-        &self,
+        &mut self,
         callbacks: HostCallbacks,
         metadata: PluginMetadata,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // 默认实现：设置全局回调函数
-        set_host_callbacks(callbacks).map_err(|_| "Failed to set host callbacks")?;
+    ) -> Result<PluginInstanceContext, Box<dyn std::error::Error>> {
+        // 创建插件实例上下文
+        let instance_id = metadata.instance_id.as_ref()
+            .ok_or("Instance ID is required for plugin initialization")?
+            .clone();
 
-        // 设置全局插件元数据
-        set_plugin_metadata(metadata).map_err(|_| "Failed to set plugin metadata")?;
+        let mut context = PluginInstanceContext::new(instance_id, metadata);
+        context.set_callbacks(callbacks);
 
-        Ok(())
+        Ok(context)
     }
 
     /// 更新UI（事件驱动）
     /// 当前端用户交互或需要更新UI时调用
-    fn update_ui(&mut self, ctx: &Context, ui: &mut Ui);
+    fn update_ui(&mut self, ctx: &Context, ui: &mut Ui, plugin_ctx: &PluginInstanceContext);
 
     /// 插件挂载时调用
-    fn on_mount(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_mount(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 插件卸载时调用
-    fn on_dispose(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_dispose(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 连接时调用
-    fn on_connect(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_connect(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 断开连接时调用
-    fn on_disconnect(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_disconnect(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 处理消息
-    fn handle_message(&self, message: &str) -> Result<String, Box<dyn std::error::Error>>;
+    fn handle_message(&mut self, message: &str, plugin_ctx: &PluginInstanceContext) -> Result<String, Box<dyn std::error::Error>>;
 
     /// 获取插件元数据
-    fn get_metadata(&self) -> PluginMetadata {
-        get_current_plugin_metadata().unwrap().clone()
+    fn get_metadata<'a>(&self, plugin_ctx: &'a PluginInstanceContext) -> &'a PluginMetadata {
+        plugin_ctx.get_metadata()
     }
 }
