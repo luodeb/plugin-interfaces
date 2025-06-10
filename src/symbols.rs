@@ -102,6 +102,7 @@ pub fn create_plugin_interface_from_handler(
             } else {
                 String::new()
             },
+            instance_id: None, // 在on_mount时设置
         };
 
         match handler.on_mount(&metadata) {

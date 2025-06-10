@@ -12,6 +12,7 @@ pub struct PluginMetadata {
     pub author: Option<String>,
     pub library_path: Option<String>, // 动态库文件路径
     pub config_path: String,          // 配置文件路径
+    pub instance_id: Option<String>,  // 插件实例ID，用于多实例支持
 }
 
 /// FFI安全的插件元数据结构

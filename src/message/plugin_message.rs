@@ -88,7 +88,10 @@ pub trait PluginMessage {
 
 impl<T: PluginHandler> PluginMessage for T {
     fn send_message_to_frontend_typed(&self, content: &str, message_type: MessageType) -> bool {
-        send_message_to_frontend(self.get_metadata().id.as_str(), content, message_type)
+        let metadata = self.get_metadata();
+        // 优先使用实例ID，如果没有则使用插件ID
+        let id = metadata.instance_id.as_ref().unwrap_or(&metadata.id);
+        send_message_to_frontend(id, content, message_type)
     }
 }
 
