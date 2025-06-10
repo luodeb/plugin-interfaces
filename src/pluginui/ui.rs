@@ -302,9 +302,12 @@ pub trait PluginUiOption {
 
 impl<T: PluginHandler> PluginUiOption for T {
     fn refresh_ui(&self) -> bool {
-        let plugin_id = self.get_metadata().id;
+        let metadata = self.get_metadata();
+        let plugin_id = &metadata.id;
+        let instance_id = &metadata.instance_id.as_ref().unwrap_or(&metadata.id);
         let payload = serde_json::json!({
-            "plugin": plugin_id
+            "plugin": plugin_id,
+            "instance": instance_id
         })
         .to_string();
         send_to_frontend("plugin-ui-refreshed", &payload.as_str())
