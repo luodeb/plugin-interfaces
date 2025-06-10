@@ -44,17 +44,6 @@ pub fn send_message_to_frontend(plugin_id: &str, content: &str, message_type: Me
     send_to_frontend("plugin-message", &payload.to_string())
 }
 
-/// 发送消息到前端（兼容旧协议）
-pub fn send_message_to_frontend_legacy(plugin_id: &str, payload: &str) -> bool {
-    send_to_frontend(
-        "plugin-message-response",
-        &format!(
-            "{{\"plugin\": \"{}\", \"response\": \"{}\"}}",
-            plugin_id, payload
-        ),
-    )
-}
-
 /// 插件消息发送器
 pub trait PluginMessage {
     /// 向前端发送消息（新协议）
