@@ -1,6 +1,6 @@
 [package]
 name = "plugin-interfaces"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Plugin interfaces for chat-client application"
 authors = ["Debin <luodeb@outlook.com>"]
