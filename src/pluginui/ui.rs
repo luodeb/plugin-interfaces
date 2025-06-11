@@ -307,13 +307,18 @@ impl<T: PluginHandler> PluginUiOption for T {
     fn refresh_ui(&self, plugin_ctx: &crate::metadata::PluginInstanceContext) -> bool {
         // 使用上下文中的信息发送UI刷新事件
         let plugin_id = &plugin_ctx.metadata.id;
-        let instance_id = plugin_ctx.metadata.instance_id.as_ref().unwrap_or(&plugin_ctx.metadata.id);
+        let instance_id = plugin_ctx
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_ctx.metadata.id);
 
         // 构建刷新事件的载荷
         let payload = serde_json::json!({
             "plugin": plugin_id,
             "instance": instance_id
-        }).to_string();
+        })
+        .to_string();
 
         // 通过上下文发送消息到前端
         plugin_ctx.send_to_frontend("plugin-ui-refreshed", &payload)

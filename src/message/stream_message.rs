@@ -117,7 +117,7 @@ fn send_stream_message_to_frontend(
     instance_id: &str,
     message_type: &str,
     data: StreamMessageData,
-    plugin_ctx: &crate::metadata::PluginInstanceContext
+    plugin_ctx: &crate::metadata::PluginInstanceContext,
 ) -> bool {
     let wrapper = StreamMessageWrapper {
         r#type: message_type.to_string(),
@@ -140,7 +140,10 @@ fn send_stream_message_to_frontend(
 /// 重新设计以支持上下文传递模式
 pub trait PluginStreamMessage {
     /// 开始流式传输，返回流ID
-    fn send_message_stream_start(&self, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<String, StreamError>;
+    fn send_message_stream_start(
+        &self,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<String, StreamError>;
 
     /// 发送流式数据块
     fn send_message_stream(
@@ -161,19 +164,34 @@ pub trait PluginStreamMessage {
     ) -> Result<(), StreamError>;
 
     /// 暂停流式传输
-    fn send_message_stream_pause(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<(), StreamError>;
+    fn send_message_stream_pause(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError>;
 
     /// 恢复流式传输
-    fn send_message_stream_resume(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<(), StreamError>;
+    fn send_message_stream_resume(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError>;
 
     /// 取消流式传输
-    fn send_message_stream_cancel(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<(), StreamError>;
+    fn send_message_stream_cancel(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError>;
 
     /// 获取流状态
     fn get_stream_status(&self, stream_id: &str) -> Option<StreamStatus>;
 
     /// 列出活跃的流
-    fn list_active_streams(&self, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Vec<String>;
+    fn list_active_streams(
+        &self,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Vec<String>;
 
     /// 批量发送流式数据
     fn send_message_stream_batch(
@@ -184,9 +202,11 @@ pub trait PluginStreamMessage {
     ) -> Result<(), StreamError>;
 }
 
-
 impl<T: PluginHandler> PluginStreamMessage for T {
-    fn send_message_stream_start(&self, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<String, StreamError> {
+    fn send_message_stream_start(
+        &self,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<String, StreamError> {
         log_info!("Starting stream with context: {:?}", plugin_ctx);
         let stream_id = generate_stream_id();
         let plugin_metadata = self.get_metadata(plugin_ctx);
@@ -208,7 +228,8 @@ impl<T: PluginHandler> PluginStreamMessage for T {
             message_type: "stream_start".to_string(),
         });
 
-        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_start", data, plugin_ctx) {
+        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_start", data, plugin_ctx)
+        {
             log_info!("Stream started successfully");
             // 记录流信息
             if let Ok(mut manager) = STREAM_MANAGER.lock() {
@@ -266,7 +287,8 @@ impl<T: PluginHandler> PluginStreamMessage for T {
             is_final,
         });
 
-        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data, plugin_ctx) {
+        if send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data, plugin_ctx)
+        {
             // 更新流状态
             if is_final {
                 if let Ok(mut manager) = STREAM_MANAGER.lock() {
@@ -327,7 +349,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
     }
 
-    fn send_message_stream_pause(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> Result<(), StreamError> {
+    fn send_message_stream_pause(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError> {
         let mut manager = STREAM_MANAGER
             .lock()
             .map_err(|_| StreamError::InvalidState)?;
@@ -346,8 +372,13 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                         stream_id: stream_id.to_string(),
                     });
 
-                    if send_stream_message_to_frontend(plugin_id, instance_id, "stream_pause", data, plugin_ctx)
-                    {
+                    if send_stream_message_to_frontend(
+                        plugin_id,
+                        instance_id,
+                        "stream_pause",
+                        data,
+                        plugin_ctx,
+                    ) {
                         Ok(())
                     } else {
                         // 回滚状态
@@ -362,7 +393,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
     }
 
-    fn send_message_stream_resume(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext,) -> Result<(), StreamError> {
+    fn send_message_stream_resume(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError> {
         let mut manager = STREAM_MANAGER
             .lock()
             .map_err(|_| StreamError::InvalidState)?;
@@ -402,7 +437,11 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
     }
 
-    fn send_message_stream_cancel(&self, stream_id: &str, plugin_ctx: &crate::metadata::PluginInstanceContext,) -> Result<(), StreamError> {
+    fn send_message_stream_cancel(
+        &self,
+        stream_id: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Result<(), StreamError> {
         let mut manager = STREAM_MANAGER
             .lock()
             .map_err(|_| StreamError::InvalidState)?;
@@ -447,7 +486,10 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
     }
 
-    fn list_active_streams(&self, plugin_ctx: &crate::metadata::PluginInstanceContext,) -> Vec<String> {
+    fn list_active_streams(
+        &self,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> Vec<String> {
         if let Ok(manager) = STREAM_MANAGER.lock() {
             let plugin_metadata = self.get_metadata(plugin_ctx);
             let plugin_id = plugin_metadata
@@ -509,7 +551,13 @@ impl<T: PluginHandler> PluginStreamMessage for T {
                 is_final,
             });
 
-            if !send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data, plugin_ctx) {
+            if !send_stream_message_to_frontend(
+                plugin_id,
+                instance_id,
+                "stream_data",
+                data,
+                plugin_ctx,
+            ) {
                 return Err(StreamError::SendFailed);
             }
         }
@@ -526,4 +574,3 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         Ok(())
     }
 }
-

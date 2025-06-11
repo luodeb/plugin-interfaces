@@ -1,5 +1,5 @@
 use crate::callbacks::HostCallbacks;
-use crate::metadata::{PluginMetadataFFI, PluginInstanceContext};
+use crate::metadata::{PluginInstanceContext, PluginMetadataFFI};
 use std::os::raw::c_char;
 
 /// 插件包装器，包含处理器和上下文

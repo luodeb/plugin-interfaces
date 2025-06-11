@@ -1,5 +1,5 @@
 use crate::callbacks::HostCallbacks;
-use crate::metadata::{PluginMetadata, PluginInstanceContext};
+use crate::metadata::{PluginInstanceContext, PluginMetadata};
 use crate::pluginui::{Context, Ui};
 
 /// 插件处理器 trait
@@ -13,7 +13,9 @@ pub trait PluginHandler: Send + Sync {
         metadata: PluginMetadata,
     ) -> Result<PluginInstanceContext, Box<dyn std::error::Error>> {
         // 创建插件实例上下文
-        let instance_id = metadata.instance_id.as_ref()
+        let instance_id = metadata
+            .instance_id
+            .as_ref()
             .ok_or("Instance ID is required for plugin initialization")?
             .clone();
 
@@ -28,19 +30,35 @@ pub trait PluginHandler: Send + Sync {
     fn update_ui(&mut self, ctx: &Context, ui: &mut Ui, plugin_ctx: &PluginInstanceContext);
 
     /// 插件挂载时调用
-    fn on_mount(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_mount(
+        &mut self,
+        plugin_ctx: &PluginInstanceContext,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 插件卸载时调用
-    fn on_dispose(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_dispose(
+        &mut self,
+        plugin_ctx: &PluginInstanceContext,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 连接时调用
-    fn on_connect(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_connect(
+        &mut self,
+        plugin_ctx: &PluginInstanceContext,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 断开连接时调用
-    fn on_disconnect(&mut self, plugin_ctx: &PluginInstanceContext) -> Result<(), Box<dyn std::error::Error>>;
+    fn on_disconnect(
+        &mut self,
+        plugin_ctx: &PluginInstanceContext,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// 处理消息
-    fn handle_message(&mut self, message: &str, plugin_ctx: &PluginInstanceContext) -> Result<String, Box<dyn std::error::Error>>;
+    fn handle_message(
+        &mut self,
+        message: &str,
+        plugin_ctx: &PluginInstanceContext,
+    ) -> Result<String, Box<dyn std::error::Error>>;
 
     /// 获取插件元数据
     fn get_metadata<'a>(&self, plugin_ctx: &'a PluginInstanceContext) -> &'a PluginMetadata {

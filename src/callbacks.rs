@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::ffi::c_char;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::collections::HashMap;
 
 /// 主程序提供给插件的回调函数集合
 /// 这些函数指针在插件加载时由主程序传递给插件
@@ -39,7 +39,9 @@ fn init_instance_callbacks() -> &'static Arc<Mutex<HashMap<String, HostCallbacks
 /// 设置指定实例的主程序回调函数（由主程序调用）
 pub fn set_host_callbacks(instance_id: &str, callbacks: HostCallbacks) -> Result<(), String> {
     let storage = init_instance_callbacks();
-    let mut map = storage.lock().map_err(|_| "Failed to lock callbacks storage")?;
+    let mut map = storage
+        .lock()
+        .map_err(|_| "Failed to lock callbacks storage")?;
     map.insert(instance_id.to_string(), callbacks);
     Ok(())
 }

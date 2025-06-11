@@ -34,14 +34,26 @@ pub fn send_message_to_frontend(_plugin_id: &str, _instance_id: &str, _content: 
 /// 提供向前端发送消息的便捷方法，使用上下文传递模式
 pub trait PluginMessage {
     /// 向前端发送消息，需要传入插件实例上下文
-    fn send_message_to_frontend(&self, content: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> bool;
+    fn send_message_to_frontend(
+        &self,
+        content: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> bool;
 }
 
 impl<T: PluginHandler> PluginMessage for T {
-    fn send_message_to_frontend(&self, content: &str, plugin_ctx: &crate::metadata::PluginInstanceContext) -> bool {
+    fn send_message_to_frontend(
+        &self,
+        content: &str,
+        plugin_ctx: &crate::metadata::PluginInstanceContext,
+    ) -> bool {
         // 使用上下文中的信息发送消息
         let plugin_id = &plugin_ctx.metadata.id;
-        let instance_id = plugin_ctx.metadata.instance_id.as_ref().unwrap_or(&plugin_ctx.metadata.id);
+        let instance_id = plugin_ctx
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&plugin_ctx.metadata.id);
 
         // 构建消息载荷
         let payload = serde_json::json!({
@@ -54,7 +66,8 @@ impl<T: PluginHandler> PluginMessage for T {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_millis()
-        }).to_string();
+        })
+        .to_string();
 
         // 通过上下文发送消息到前端
         plugin_ctx.send_to_frontend("plugin-message", &payload)
