@@ -12,6 +12,7 @@ pub enum StreamError {
     StreamNotFound,
     StreamAlreadyEnded,
     InvalidState,
+    StreamCancelled,
 }
 
 impl std::fmt::Display for StreamError {
@@ -22,6 +23,7 @@ impl std::fmt::Display for StreamError {
             StreamError::StreamNotFound => write!(f, "Stream not found"),
             StreamError::StreamAlreadyEnded => write!(f, "Stream already ended"),
             StreamError::InvalidState => write!(f, "Invalid stream state"),
+            StreamError::StreamCancelled => write!(f, "Stream was cancelled by user"),
         }
     }
 }
@@ -98,8 +100,9 @@ pub struct StreamControlData {
     pub stream_id: String,
 }
 
-/// 全局流管理器
-static STREAM_MANAGER: std::sync::LazyLock<Arc<Mutex<HashMap<String, StreamInfo>>>> =
+/// 全局流管理器（插件端，主要用于API兼容性）
+/// 实际的流状态管理在后端进行
+pub static STREAM_MANAGER: std::sync::LazyLock<Arc<Mutex<HashMap<String, StreamInfo>>>> =
     std::sync::LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 /// 生成唯一的流ID
@@ -258,20 +261,14 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         is_final: bool,
         plugin_ctx: &crate::metadata::PluginInstanceContext,
     ) -> Result<(), StreamError> {
-        // 检查流是否存在且状态有效
+        // 简化的流状态检查，主要依赖后端的检查
+        // 只检查流是否存在于插件端管理器中
         {
             let manager = STREAM_MANAGER
                 .lock()
                 .map_err(|_| StreamError::InvalidState)?;
-            match manager.get(stream_id) {
-                Some(stream_info) => match stream_info.status {
-                    StreamStatus::Active | StreamStatus::Finalizing => {}
-                    StreamStatus::Paused => return Err(StreamError::InvalidState),
-                    StreamStatus::Completed | StreamStatus::Error | StreamStatus::Cancelled => {
-                        return Err(StreamError::StreamAlreadyEnded);
-                    }
-                },
-                None => return Err(StreamError::StreamNotFound),
+            if !manager.contains_key(stream_id) {
+                return Err(StreamError::StreamNotFound);
             }
         }
 
@@ -287,9 +284,10 @@ impl<T: PluginHandler> PluginStreamMessage for T {
             is_final,
         });
 
+        // 尝试发送消息，后端会检查流状态
         if send_stream_message_to_frontend(plugin_id, instance_id, "stream_data", data, plugin_ctx)
         {
-            // 更新流状态
+            // 更新插件端流状态（仅用于API兼容性）
             if is_final {
                 if let Ok(mut manager) = STREAM_MANAGER.lock() {
                     if let Some(stream_info) = manager.get_mut(stream_id) {
@@ -299,7 +297,9 @@ impl<T: PluginHandler> PluginStreamMessage for T {
             }
             Ok(())
         } else {
-            Err(StreamError::SendFailed)
+            // 发送失败，后端已经检查了流状态
+            // 如果是因为流被取消，返回相应错误
+            Err(StreamError::StreamCancelled)
         }
     }
 
@@ -572,5 +572,43 @@ impl<T: PluginHandler> PluginStreamMessage for T {
         }
 
         Ok(())
+    }
+}
+
+/// 公共函数：取消指定的流式消息
+pub fn cancel_stream_by_id(
+    stream_id: &str,
+    plugin_id: &str,
+    instance_id: &str,
+    plugin_ctx: &crate::metadata::PluginInstanceContext,
+) -> Result<(), StreamError> {
+    let mut manager = STREAM_MANAGER
+        .lock()
+        .map_err(|_| StreamError::InvalidState)?;
+
+    match manager.get_mut(stream_id) {
+        Some(stream_info) => match stream_info.status {
+            StreamStatus::Active | StreamStatus::Paused | StreamStatus::Finalizing => {
+                stream_info.status = StreamStatus::Cancelled;
+
+                let data = StreamMessageData::Control(StreamControlData {
+                    stream_id: stream_id.to_string(),
+                });
+
+                if send_stream_message_to_frontend(
+                    plugin_id,
+                    instance_id,
+                    "stream_cancel",
+                    data,
+                    plugin_ctx,
+                ) {
+                    Ok(())
+                } else {
+                    Err(StreamError::SendFailed)
+                }
+            }
+            _ => Err(StreamError::InvalidState),
+        },
+        None => Err(StreamError::StreamNotFound),
     }
 }
