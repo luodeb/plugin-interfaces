@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::os::raw::c_char;
+use std::time::{SystemTime, UNIX_EPOCH};
+use crate::message::{PluginStreamMessage, StreamError, StreamStatus, StreamMessageData, StreamStartData, StreamDataData, StreamEndData, StreamControlData, STREAM_MANAGER, StreamInfo};
 
 /// 插件元数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,6 +222,103 @@ impl PluginInstanceContext {
         }
         None
     }
+
+    /// 向前端发送消息
+    pub fn send_message_to_frontend(&self, content: &str) -> bool {
+        // 使用上下文中的信息发送消息
+        let plugin_id = &self.metadata.id;
+        let instance_id = self
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&self.metadata.id);
+
+        // 构建消息载荷
+        let payload = serde_json::json!({
+            "message_type": "plugin_message",
+            "plugin_id": plugin_id,
+            "instance_id": instance_id,
+            "message_id": self.generate_message_id(),
+            "content": content,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        })
+        .to_string();
+
+        // 通过上下文发送消息到前端
+        self.send_to_frontend("plugin-message", &payload)
+    }
+
+    /// 生成唯一的消息ID
+    fn generate_message_id(&self) -> String {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("message_{}", timestamp)
+    }
+
+    /// 刷新UI
+    pub fn refresh_ui(&self) -> bool {
+        // 使用上下文中的信息发送UI刷新事件
+        let plugin_id = &self.metadata.id;
+        let instance_id = self
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&self.metadata.id);
+
+        // 构建刷新事件的载荷
+        let payload = serde_json::json!({
+            "plugin": plugin_id,
+            "instance": instance_id
+        })
+        .to_string();
+
+        // 通过上下文发送消息到前端
+        self.send_to_frontend("plugin-ui-refreshed", &payload)
+    }
+    /// 生成唯一的流ID
+    fn generate_stream_id(&self) -> String {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("stream_{}", timestamp)
+    }
+
+    /// 发送流式消息到前端
+    fn send_stream_message_to_frontend(
+        &self,
+        message_type: &str,
+        data: StreamMessageData,
+    ) -> bool {
+        let plugin_id = &self.metadata.id;
+        let instance_id = self
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&self.metadata.id);
+
+        let wrapper = crate::message::StreamMessageWrapper {
+            r#type: message_type.to_string(),
+            plugin_id: plugin_id.clone(),
+            instance_id: instance_id.clone(),
+            data,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+        };
+
+        match serde_json::to_string(&wrapper) {
+            Ok(payload) => self.send_to_frontend("plugin-stream", &payload),
+            Err(_) => false,
+        }
+    }
+
 }
 
 /// 将 FFI 元数据转换为 Rust 元数据
@@ -307,5 +406,258 @@ pub unsafe fn convert_ffi_to_metadata(metadata_ffi: PluginMetadataFFI) -> Plugin
         config_path,
         instance_id,
         require_history: metadata_ffi.require_history, // FFI 转换时默认为 false，实际值从配置文件读取
+    }
+}
+
+
+/// 为 PluginInstanceContext 实现 PluginStreamMessage trait
+impl PluginStreamMessage for PluginInstanceContext {
+    fn send_message_stream_start(&self) -> Result<String, StreamError> {
+        let stream_id = self.generate_stream_id();
+        let plugin_id = &self.metadata.id;
+
+        let data = StreamMessageData::Start(StreamStartData {
+            stream_id: stream_id.clone(),
+            message_type: "stream_start".to_string(),
+        });
+
+        if self.send_stream_message_to_frontend("stream_start", data) {
+            // 记录流信息
+            if let Ok(mut manager) = STREAM_MANAGER.lock() {
+                let stream_info = StreamInfo {
+                    id: stream_id.clone(),
+                    plugin_id: plugin_id.clone(),
+                    message_type: "plugin_stream".to_string(),
+                    status: StreamStatus::Active,
+                    created_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                };
+                manager.insert(stream_id.clone(), stream_info);
+            }
+            Ok(stream_id)
+        } else {
+            Err(StreamError::SendFailed)
+        }
+    }
+
+    fn send_message_stream(
+        &self,
+        stream_id: &str,
+        chunk: &str,
+        is_final: bool,
+    ) -> Result<(), StreamError> {
+        // 检查流是否存在
+        {
+            let manager = STREAM_MANAGER
+                .lock()
+                .map_err(|_| StreamError::InvalidState)?;
+            if !manager.contains_key(stream_id) {
+                return Err(StreamError::StreamNotFound);
+            }
+        }
+
+        let data = StreamMessageData::Data(StreamDataData {
+            stream_id: stream_id.to_string(),
+            chunk: chunk.to_string(),
+            is_final,
+        });
+
+        if self.send_stream_message_to_frontend("stream_data", data) {
+            // 更新流状态
+            if is_final {
+                if let Ok(mut manager) = STREAM_MANAGER.lock() {
+                    if let Some(stream_info) = manager.get_mut(stream_id) {
+                        stream_info.status = StreamStatus::Finalizing;
+                    }
+                }
+            }
+            Ok(())
+        } else {
+            Err(StreamError::StreamCancelled)
+        }
+    }
+
+    fn send_message_stream_end(
+        &self,
+        stream_id: &str,
+        success: bool,
+        error_msg: Option<&str>,
+    ) -> Result<(), StreamError> {
+        // 检查流是否存在
+        {
+            let manager = STREAM_MANAGER
+                .lock()
+                .map_err(|_| StreamError::InvalidState)?;
+            if !manager.contains_key(stream_id) {
+                return Err(StreamError::StreamNotFound);
+            }
+        }
+
+        let data = StreamMessageData::End(StreamEndData {
+            stream_id: stream_id.to_string(),
+            success,
+            error: error_msg.map(|s| s.to_string()),
+        });
+
+        if self.send_stream_message_to_frontend("stream_end", data) {
+            // 更新流状态
+            if let Ok(mut manager) = STREAM_MANAGER.lock() {
+                if let Some(stream_info) = manager.get_mut(stream_id) {
+                    stream_info.status = if success {
+                        StreamStatus::Completed
+                    } else {
+                        StreamStatus::Error
+                    };
+                }
+            }
+            Ok(())
+        } else {
+            Err(StreamError::SendFailed)
+        }
+    }
+
+    fn send_message_stream_pause(&self, stream_id: &str) -> Result<(), StreamError> {
+        let mut manager = STREAM_MANAGER
+            .lock()
+            .map_err(|_| StreamError::InvalidState)?;
+        match manager.get_mut(stream_id) {
+            Some(stream_info) => {
+                if stream_info.status == StreamStatus::Active {
+                    stream_info.status = StreamStatus::Paused;
+                    let data = StreamMessageData::Control(StreamControlData {
+                        stream_id: stream_id.to_string(),
+                    });
+                    if self.send_stream_message_to_frontend("stream_pause", data) {
+                        Ok(())
+                    } else {
+                        Err(StreamError::SendFailed)
+                    }
+                } else {
+                    Err(StreamError::InvalidState)
+                }
+            }
+            None => Err(StreamError::StreamNotFound),
+        }
+    }
+
+    fn send_message_stream_resume(&self, stream_id: &str) -> Result<(), StreamError> {
+        let mut manager = STREAM_MANAGER
+            .lock()
+            .map_err(|_| StreamError::InvalidState)?;
+        match manager.get_mut(stream_id) {
+            Some(stream_info) => {
+                if stream_info.status == StreamStatus::Paused {
+                    stream_info.status = StreamStatus::Active;
+                    let data = StreamMessageData::Control(StreamControlData {
+                        stream_id: stream_id.to_string(),
+                    });
+                    if self.send_stream_message_to_frontend("stream_resume", data) {
+                        Ok(())
+                    } else {
+                        Err(StreamError::SendFailed)
+                    }
+                } else {
+                    Err(StreamError::InvalidState)
+                }
+            }
+            None => Err(StreamError::StreamNotFound),
+        }
+    }
+
+    fn send_message_stream_cancel(&self, stream_id: &str) -> Result<(), StreamError> {
+        let mut manager = STREAM_MANAGER
+            .lock()
+            .map_err(|_| StreamError::InvalidState)?;
+        match manager.get_mut(stream_id) {
+            Some(stream_info) => match stream_info.status {
+                StreamStatus::Active | StreamStatus::Paused | StreamStatus::Finalizing => {
+                    stream_info.status = StreamStatus::Cancelled;
+                    let data = StreamMessageData::Control(StreamControlData {
+                        stream_id: stream_id.to_string(),
+                    });
+                    if self.send_stream_message_to_frontend("stream_cancel", data) {
+                        Ok(())
+                    } else {
+                        Err(StreamError::SendFailed)
+                    }
+                }
+                _ => Err(StreamError::StreamAlreadyEnded),
+            },
+            None => Err(StreamError::StreamNotFound),
+        }
+    }
+
+    fn get_stream_status(&self, stream_id: &str) -> Option<StreamStatus> {
+        if let Ok(manager) = STREAM_MANAGER.lock() {
+            manager.get(stream_id).map(|info| info.status.clone())
+        } else {
+            None
+        }
+    }
+
+    fn list_active_streams(&self) -> Vec<String> {
+        if let Ok(manager) = STREAM_MANAGER.lock() {
+            manager
+                .iter()
+                .filter(|(_, info)| {
+                    matches!(
+                        info.status,
+                        StreamStatus::Active | StreamStatus::Paused | StreamStatus::Finalizing
+                    )
+                })
+                .map(|(id, _)| id.clone())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn send_message_stream_batch(
+        &self,
+        stream_id: &str,
+        chunks: &[&str],
+    ) -> Result<(), StreamError> {
+        // 检查流是否存在且状态有效
+        {
+            let manager = STREAM_MANAGER
+                .lock()
+                .map_err(|_| StreamError::InvalidState)?;
+            match manager.get(stream_id) {
+                Some(stream_info) => match stream_info.status {
+                    StreamStatus::Active | StreamStatus::Finalizing => {}
+                    StreamStatus::Paused => return Err(StreamError::InvalidState),
+                    StreamStatus::Completed | StreamStatus::Error | StreamStatus::Cancelled => {
+                        return Err(StreamError::StreamAlreadyEnded);
+                    }
+                },
+                None => return Err(StreamError::StreamNotFound),
+            }
+        }
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            let is_final = i == chunks.len() - 1;
+            let data = StreamMessageData::Data(StreamDataData {
+                stream_id: stream_id.to_string(),
+                chunk: chunk.to_string(),
+                is_final,
+            });
+
+            if !self.send_stream_message_to_frontend("stream_data", data) {
+                return Err(StreamError::SendFailed);
+            }
+        }
+
+        // 更新流状态
+        if !chunks.is_empty() {
+            if let Ok(mut manager) = STREAM_MANAGER.lock() {
+                if let Some(stream_info) = manager.get_mut(stream_id) {
+                    stream_info.status = StreamStatus::Finalizing;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
