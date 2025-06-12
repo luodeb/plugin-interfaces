@@ -18,7 +18,6 @@ pub trait PluginHandler: Send + Sync {
             .as_ref()
             .ok_or("Instance ID is required for plugin initialization")?
             .clone();
-
         let mut context = PluginInstanceContext::new(instance_id, metadata);
         context.set_callbacks(callbacks);
 

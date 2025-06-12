@@ -26,6 +26,7 @@ pub struct PluginInterface {
     pub on_disconnect: unsafe extern "C" fn(*mut std::ffi::c_void) -> i32,
     pub handle_message:
         unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char, *mut *mut c_char) -> i32,
+    pub set_history: unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char) -> i32,
     pub get_metadata: unsafe extern "C" fn(*mut std::ffi::c_void) -> PluginMetadataFFI,
     pub destroy: unsafe extern "C" fn(*mut std::ffi::c_void),
 }
@@ -161,6 +162,37 @@ pub fn create_plugin_interface_from_handler(
         }
     }
 
+    unsafe extern "C" fn set_history_wrapper(
+        ptr: *mut std::ffi::c_void,
+        history_json: *const c_char,
+    ) -> i32 {
+        let wrapper = &mut *(ptr as *mut PluginWrapper);
+
+        if history_json.is_null() {
+            // 清除历史记录
+            if let Some(context) = &mut wrapper.context {
+                context.clear_history();
+                return 0;
+            }
+            return -1;
+        }
+
+        let history_str = CStr::from_ptr(history_json).to_string_lossy();
+
+        // 解析历史记录 JSON
+        match serde_json::from_str::<Vec<crate::metadata::HistoryMessage>>(&history_str) {
+            Ok(history) => {
+                if let Some(context) = &mut wrapper.context {
+                    context.set_history(history);
+                    0
+                } else {
+                    -1
+                }
+            }
+            Err(_) => -1,
+        }
+    }
+
     unsafe extern "C" fn get_metadata_wrapper(ptr: *mut std::ffi::c_void) -> PluginMetadataFFI {
         let wrapper = &*(ptr as *mut PluginWrapper);
         if let Some(plugin_context) = &wrapper.context {
@@ -178,6 +210,7 @@ pub fn create_plugin_interface_from_handler(
                 library_path: std::ptr::null(),
                 config_path: std::ptr::null(),
                 instance_id: std::ptr::null(),
+                require_history: false,
             }
         }
     }
@@ -195,6 +228,7 @@ pub fn create_plugin_interface_from_handler(
         on_connect: on_connect_wrapper,
         on_disconnect: on_disconnect_wrapper,
         handle_message: handle_message_wrapper,
+        set_history: set_history_wrapper,
         get_metadata: get_metadata_wrapper,
         destroy: destroy_wrapper,
     };

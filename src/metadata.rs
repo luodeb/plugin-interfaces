@@ -13,6 +13,7 @@ pub struct PluginMetadata {
     pub library_path: Option<String>, // 动态库文件路径
     pub config_path: String,          // 配置文件路径
     pub instance_id: Option<String>,  // 插件实例ID，用于多实例支持
+    pub require_history: bool,        // 是否需要接收历史记录
 }
 
 /// FFI安全的插件元数据结构
@@ -29,6 +30,7 @@ pub struct PluginMetadataFFI {
     pub library_path: *const c_char, // 如果为null表示None
     pub config_path: *const c_char,
     pub instance_id: *const c_char, // 如果为null表示None
+    pub require_history: bool, // 是否需要接收历史记录
 }
 
 impl PluginMetadata {
@@ -70,6 +72,7 @@ impl PluginMetadata {
             library_path,
             config_path,
             instance_id,
+            require_history: self.require_history,
         }
     }
 }
@@ -102,6 +105,21 @@ pub unsafe fn free_plugin_metadata_ffi(metadata: PluginMetadataFFI) {
     }
 }
 
+/// 历史消息结构
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HistoryMessage {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub message_type: String, // 'normal' | 'streaming'
+    pub status: String, // 'completed' | 'active' | 'paused' | 'error' | 'cancelled'
+    pub content: String,
+    #[serde(rename = "pluginId")]
+    pub plugin_id: String,
+    pub role: String, // 'user' | 'plugin' | 'system'
+    #[serde(rename = "createdAt")]
+    pub created_at: String, // ISO 8601 时间字符串
+}
+
 /// 插件实例上下文
 /// 包含插件实例的所有状态信息
 #[derive(Debug, Clone)]
@@ -109,6 +127,7 @@ pub struct PluginInstanceContext {
     pub instance_id: String,
     pub metadata: PluginMetadata,
     pub callbacks: Option<crate::callbacks::HostCallbacks>,
+    pub history: Option<Vec<HistoryMessage>>, // 当前会话的历史记录
 }
 
 impl PluginInstanceContext {
@@ -118,6 +137,7 @@ impl PluginInstanceContext {
             instance_id,
             metadata,
             callbacks: None,
+            history: None,
         }
     }
 
@@ -139,6 +159,21 @@ impl PluginInstanceContext {
     /// 获取回调函数
     pub fn get_callbacks(&self) -> Option<&crate::callbacks::HostCallbacks> {
         self.callbacks.as_ref()
+    }
+
+    /// 设置历史记录
+    pub fn set_history(&mut self, history: Vec<HistoryMessage>) {
+        self.history = Some(history);
+    }
+
+    /// 获取历史记录
+    pub fn get_history(&self) -> Option<&Vec<HistoryMessage>> {
+        self.history.as_ref()
+    }
+
+    /// 清除历史记录
+    pub fn clear_history(&mut self) {
+        self.history = None;
     }
 
     /// 向前端发送消息
@@ -271,5 +306,6 @@ pub unsafe fn convert_ffi_to_metadata(metadata_ffi: PluginMetadataFFI) -> Plugin
         library_path,
         config_path,
         instance_id,
+        require_history: metadata_ffi.require_history, // FFI 转换时默认为 false，实际值从配置文件读取
     }
 }
