@@ -1,7 +1,11 @@
+use crate::log_error;
+use crate::message::{
+    PluginStreamMessage, StreamControlData, StreamDataData, StreamEndData, StreamError, StreamInfo,
+    StreamMessageData, StreamStartData, StreamStatus, STREAM_MANAGER,
+};
 use serde::{Deserialize, Serialize};
 use std::os::raw::c_char;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::message::{PluginStreamMessage, StreamError, StreamStatus, StreamMessageData, StreamStartData, StreamDataData, StreamEndData, StreamControlData, STREAM_MANAGER, StreamInfo};
 
 /// 插件元数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +36,7 @@ pub struct PluginMetadataFFI {
     pub library_path: *const c_char, // 如果为null表示None
     pub config_path: *const c_char,
     pub instance_id: *const c_char, // 如果为null表示None
-    pub require_history: bool, // 是否需要接收历史记录
+    pub require_history: bool,      // 是否需要接收历史记录
 }
 
 impl PluginMetadata {
@@ -170,6 +174,14 @@ impl PluginInstanceContext {
 
     /// 获取历史记录
     pub fn get_history(&self) -> Option<&Vec<HistoryMessage>> {
+        // 如果调用了 get_history 方法，但插件没有设置 require_history，
+        // 则给出报错提示
+        if !self.metadata.require_history {
+            log_error!(
+                "Plugin '{}' does not set require_history config, but get_history was called.",
+                self.metadata.id
+            );
+        }
         self.history.as_ref()
     }
 
@@ -315,11 +327,7 @@ impl PluginInstanceContext {
     }
 
     /// 发送流式消息到前端
-    fn send_stream_message_to_frontend(
-        &self,
-        message_type: &str,
-        data: StreamMessageData,
-    ) -> bool {
+    fn send_stream_message_to_frontend(&self, message_type: &str, data: StreamMessageData) -> bool {
         let plugin_id = &self.metadata.id;
         let instance_id = self
             .metadata
@@ -432,7 +440,6 @@ pub unsafe fn convert_ffi_to_metadata(metadata_ffi: PluginMetadataFFI) -> Plugin
         require_history: metadata_ffi.require_history, // FFI 转换时默认为 false，实际值从配置文件读取
     }
 }
-
 
 /// 为 PluginInstanceContext 实现 PluginStreamMessage trait
 impl PluginStreamMessage for PluginInstanceContext {

@@ -1,7 +1,7 @@
 use crate::callbacks::HostCallbacks;
+use crate::log_info;
 use crate::metadata::{PluginInstanceContext, PluginMetadata};
 use crate::pluginui::{Context, Ui};
-use crate::{log_info};
 
 /// 插件处理器 trait
 /// 定义了插件的生命周期方法，使用上下文传递模式
@@ -129,9 +129,10 @@ pub trait PluginHandler: Send + Sync {
         );
 
         // 向前端发送响应
-        plugin_ctx.send_message_to_frontend(
-            &format!("[{}]收到消息：{}{}", metadata.name, message, history_info),
-        );
+        plugin_ctx.send_message_to_frontend(&format!(
+            "[{}]收到消息：{}{}",
+            metadata.name, message, history_info
+        ));
         Ok(response)
     }
 

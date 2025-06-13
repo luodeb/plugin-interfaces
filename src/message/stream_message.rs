@@ -1,8 +1,6 @@
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
 
 /// 流式传输错误类型
 #[derive(Debug, Clone)]
@@ -105,8 +103,6 @@ pub struct StreamControlData {
 pub static STREAM_MANAGER: std::sync::LazyLock<Arc<Mutex<HashMap<String, StreamInfo>>>> =
     std::sync::LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-
-
 /// 插件流式消息发送器
 /// 重新设计，移除 plugin_ctx 参数依赖
 pub trait PluginStreamMessage {
@@ -151,5 +147,3 @@ pub trait PluginStreamMessage {
         chunks: &[&str],
     ) -> Result<(), StreamError>;
 }
-
-
