@@ -280,6 +280,31 @@ impl PluginInstanceContext {
         // 通过上下文发送消息到前端
         self.send_to_frontend("plugin-ui-refreshed", &payload)
     }
+
+    /// 请求前端断开连接
+    pub fn call_disconnect(&self) -> bool {
+        let plugin_id = &self.metadata.id;
+        let instance_id = self
+            .metadata
+            .instance_id
+            .as_ref()
+            .unwrap_or(&self.metadata.id);
+
+        // 构建断开连接请求事件的载荷
+        let payload = serde_json::json!({
+            "plugin_id": plugin_id,
+            "instance_id": instance_id,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        })
+        .to_string();
+
+        // 通过上下文发送断开连接请求到前端
+        self.send_to_frontend("plugin-disconnect-request", &payload)
+    }
+
     /// 生成唯一的流ID
     fn generate_stream_id(&self) -> String {
         let timestamp = SystemTime::now()
@@ -318,7 +343,6 @@ impl PluginInstanceContext {
             Err(_) => false,
         }
     }
-
 }
 
 /// 将 FFI 元数据转换为 Rust 元数据
